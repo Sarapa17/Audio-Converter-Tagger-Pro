@@ -33,7 +33,7 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self):
         super().__init__()
         self.TkdndVersion = TkinterDnD._require(self)
-        self.title("Audio Converter & Tagger Pro (Optimized)")
+        self.title("Audio Converter & Tagger Pro")
         self.geometry("1150x850") 
 
         self.ffmpeg_path = self.find_ffmpeg()
@@ -70,8 +70,7 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
         self.lbl_real_quality = ctk.CTkLabel(self.frame_editor, text="CALIDAD REAL: Pendiente", font=("Roboto", 14, "bold"), text_color="#38bdf8")
         self.lbl_real_quality.pack(pady=5)
 
-        self.btn_verify_real = ctk.CTkButton(self.frame_editor, text="🔍 VERIFICAR INTEGRIDAD (FFT)", 
-                                             command=self.start_verify_thread, fg_color="#1e293b")
+        self.btn_verify_real = ctk.CTkButton(self.frame_editor, text="🔍 VERIFICAR INTEGRIDAD (FFT)", command=self.start_verify_thread, fg_color="#1e293b")
         self.btn_verify_real.pack(pady=5)
 
         frame_fn = ctk.CTkFrame(self.frame_editor, fg_color="transparent")
@@ -124,19 +123,16 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
         obj = self.files_data[self.current_selection_index]
         try:
             cmd = [self.ffmpeg_path, "-ss", "30", "-t", "5", "-i", obj['path'], "-f", "s16le", "-ac", "1", "-ar", "44100", "-"]
-            
             with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as process:
                 raw_audio = process.stdout.read()
-
             if not raw_audio:
-                result, color = "Error de lectura", "red"
+                result, color = "Error", "red"
             else:
                 audio_data = np.frombuffer(raw_audio, dtype=np.int16)
                 yf = fft(audio_data)
                 xf = np.linspace(0.0, 44100 // 2, len(audio_data) // 2)
                 mag = 20 * np.log10(np.abs(yf[:len(audio_data) // 2]) + 1e-6)
                 indices = np.where(mag > -60)[0]
-                
                 if len(indices) == 0:
                     result, color = "Silencio", "red"
                 else:
@@ -145,9 +141,8 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
                     elif cutoff >= 16.0: result, color = f"REAL ~256kbps ({cutoff:.1f} kHz)", "#facc15"
                     elif cutoff >= 13.5: result, color = f"FAKE 320 (Real 128k) ({cutoff:.1f} kHz)", "#f87171"
                     else: result, color = f"BAJA ({cutoff:.1f} kHz)", "#ef4444"
-
             self.after(0, lambda: self.update_quality_ui(result, color))
-        except Exception as e:
+        except:
             self.after(0, lambda: self.update_quality_ui(f"Error", "red"))
 
     def update_quality_ui(self, text, color):
@@ -158,7 +153,6 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
         try:
             path, ext = file_obj['path'], file_obj['ext'].replace('.','')
             tags, cover_data, quality = {}, None, "Desconocido"
-
             if ext == 'mp3':
                 audio = MP3(path)
                 quality = f"{int(audio.info.bitrate/1000)} kbps / {audio.info.sample_rate/1000} kHz"
@@ -168,7 +162,6 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
                 if audio.tags:
                     for tag in audio.tags.values():
                         if isinstance(tag, APIC): cover_data = tag.data; break
-            
             elif ext == 'm4a':
                 audio = MP4(path)
                 quality = f"{int(audio.info.bitrate/1000)} kbps / {audio.info.sample_rate/1000} kHz"
@@ -176,14 +169,12 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
                     val = audio.get(keys['m4a'], [''])
                     tags[label] = str(val[0][0]) if label == "Track Number" and val != [''] else str(val[0])
                 if 'covr' in audio: cover_data = audio['covr'][0]
-
             elif ext == 'flac':
                 audio = FLAC(path)
                 quality = f"LOSSLESS {audio.info.bits_per_sample}bit / {audio.info.sample_rate/1000} kHz"
                 for label, keys in TAG_CONFIG.items():
                     tags[label] = audio.get(keys['flac'], [''])[0]
                 if audio.pictures: cover_data = audio.pictures[0].data
-
             file_obj.update({'tags': tags, 'cover_bytes': cover_data, 'quality': quality})
         except: pass
 
@@ -192,19 +183,17 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
             self.lbl_cover_preview.configure(image=file_obj['ctk_thumb'], text="")
             self.btn_delete_cover.configure(state="normal")
             return
-
         image_data = None
         if file_obj.get('new_cover_path'):
             with open(file_obj['new_cover_path'], 'rb') as f: image_data = f.read()
         elif file_obj.get('cover_bytes') and not file_obj.get('delete_cover'):
             image_data = file_obj['cover_bytes']
-
         if image_data:
             try:
                 img = Image.open(io.BytesIO(image_data))
                 img.thumbnail((160, 160))
                 ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=(160, 160))
-                file_obj['ctk_thumb'] = ctk_img # Guardar en cache
+                file_obj['ctk_thumb'] = ctk_img
                 self.lbl_cover_preview.configure(image=ctk_img, text="")
                 self.btn_delete_cover.configure(state="normal")
             except: self.lbl_cover_preview.configure(image=None, text="Error")
@@ -212,14 +201,91 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
             self.lbl_cover_preview.configure(image=None, text="Sin Carátula")
             self.btn_delete_cover.configure(state="disabled")
 
+    def load_to_editor(self, index):
+        self.current_selection_index = index
+        file_obj = self.files_data[index]
+        self.lbl_quality_info.configure(text=f"HEADER: {file_obj.get('quality', '---')}")
+        self.lbl_real_quality.configure(text="CALIDAD REAL: Pendiente", text_color="#38bdf8")
+        self.entry_filename.delete(0, tk.END)
+        self.entry_filename.insert(0, file_obj['filename'])
+        for key, entry in self.entries.items():
+            entry.delete(0, tk.END)
+            entry.insert(0, str(file_obj['tags'].get(key, "")))
+        self.update_cover_preview(file_obj)
+        for item in self.files_data:
+            item['widget'].configure(fg_color=["#3B8ED0", "#1f538d"] if item == file_obj else ["#dbdbdb", "#2b2b2b"])
+
+    def register_file(self, path):
+        ext = os.path.splitext(path)[1].lower()
+        if ext not in ['.flac', '.wav', '.mp3', '.m4a']: return -1
+        for idx, f_data in enumerate(self.files_data):
+            if f_data['path'] == path: return idx
+        file_obj = {"path": path, "filename": os.path.basename(path), "ext": ext, "status": "Ready", "tags": {}, "widget": None, "lbl_status": None, "progress_bar": None, "cover_bytes": None, "new_cover_path": None, "delete_cover": False, "ctk_thumb": None}
+        self.files_data.append(file_obj)
+        self.add_file_to_ui(file_obj)
+        self.read_metadata_from_file(file_obj)
+        return len(self.files_data) - 1
+
+    def add_file_to_ui(self, file_obj):
+        row = ctk.CTkFrame(self.scroll_frame)
+        row.pack(fill="x", pady=2)
+        lbl_name = ctk.CTkLabel(row, text=file_obj['filename'], width=220, anchor="w")
+        lbl_name.pack(side="left", padx=10)
+        lbl_status = ctk.CTkLabel(row, text=file_obj['status'], width=100, text_color="orange")
+        lbl_status.pack(side="right", padx=10)
+        progress = ctk.CTkProgressBar(row, width=80); progress.set(0); progress.pack(side="right", padx=10)
+        file_obj.update({'widget': row, 'lbl_name': lbl_name, 'lbl_status': lbl_status, 'progress_bar': progress})
+        
+        for widget in [row, lbl_name, lbl_status]:
+            widget.bind("<Button-1>", lambda e, obj=file_obj: self.manual_select(obj))
+
+    def manual_select(self, file_obj):
+        try:
+            idx = self.files_data.index(file_obj)
+            self.load_to_editor(idx)
+        except: pass
+
+    def drop_on_converter(self, event):
+        for f in self.tk.splitlist(event.data): self.register_file(f)
+
+    def drop_on_editor(self, event):
+        idx = -1
+        for f in self.tk.splitlist(event.data): idx = self.register_file(f)
+        if idx != -1: self.load_to_editor(idx)
+
+    def browse_cover_art(self):
+        path = filedialog.askopenfilename(filetypes=[("Images", "*.jpg *.jpeg *.png")])
+        if path and self.current_selection_index is not None:
+            obj = self.files_data[self.current_selection_index]
+            obj['new_cover_path'], obj['delete_cover'] = path, False
+            self.update_cover_preview(obj)
+
+    def delete_current_cover(self):
+        if self.current_selection_index is not None:
+            obj = self.files_data[self.current_selection_index]
+            obj['delete_cover'], obj['new_cover_path'] = True, None
+            self.update_cover_preview(obj)
+
+    def change_output_folder(self):
+        folder = filedialog.askdirectory()
+        if folder: self.output_folder = folder; self.lbl_output.configure(text=f"Destino: {os.path.basename(folder)}")
+
     def save_tags(self):
         if self.current_selection_index is None: return
         obj = self.files_data[self.current_selection_index]
+        new_name = self.entry_filename.get().strip()
+        if new_name:
+            if not new_name.lower().endswith(obj['ext']): new_name += obj['ext']
+            if new_name != obj['filename']:
+                new_path = os.path.join(os.path.dirname(obj['path']), new_name)
+                try:
+                    os.rename(obj['path'], new_path)
+                    obj.update({'path': new_path, 'filename': new_name})
+                    obj['lbl_name'].configure(text=new_name)
+                except Exception as e: messagebox.showerror("Error", f"No se pudo renombrar: {e}"); return
         for key, entry in self.entries.items(): obj['tags'][key] = entry.get()
-        
         if obj['ext'] == '.mp3': self.apply_tags_to_mp3(obj)
         elif obj['ext'] == '.m4a': self.apply_tags_to_m4a(obj)
-        
         obj['lbl_status'].configure(text="Saved", text_color="green")
         messagebox.showinfo("OK", "Guardado.")
 
@@ -236,12 +302,10 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
             audio.tags.add(TYER(encoding=3, text=str(t.get("Year",""))))
             audio.tags.add(TRCK(encoding=3, text=str(t.get("Track Number",""))))
             audio.tags.delall("APIC")
-            
             final_img = None
             if obj.get('new_cover_path'):
                 with open(obj['new_cover_path'], 'rb') as f: final_img = f.read()
             elif obj.get('cover_bytes') and not obj.get('delete_cover'): final_img = obj['cover_bytes']
-            
             if final_img: audio.tags.add(APIC(encoding=3, mime='image/jpeg', type=3, desc='Cover', data=final_img))
             audio.save()
             obj.update({'cover_bytes': final_img, 'new_cover_path': None, 'delete_cover': False, 'ctk_thumb': None})
@@ -255,14 +319,13 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
             audio['\xa9gen'], audio['\xa9day'] = t.get("Genre",""), t.get("Year","")
             try: audio['trkn'] = [(int(t.get("Track Number",0)), 0)]
             except: pass
-            
             final_img = None
             if obj.get('new_cover_path'):
                 with open(obj['new_cover_path'], 'rb') as f: final_img = f.read()
             elif obj.get('cover_bytes') and not obj.get('delete_cover'): final_img = obj['cover_bytes']
-            
             if final_img:
-                fmt = MP4Cover.FORMAT_PNG if Image.open(io.BytesIO(final_img)).format == 'PNG' else MP4Cover.FORMAT_JPEG
+                img = Image.open(io.BytesIO(final_img))
+                fmt = MP4Cover.FORMAT_PNG if img.format == 'PNG' else MP4Cover.FORMAT_JPEG
                 audio['covr'] = [MP4Cover(final_img, imageformat=fmt)]
             elif obj.get('delete_cover'): audio.pop('covr', None)
             audio.save()
@@ -290,57 +353,6 @@ class AudioApp(ctk.CTk, TkinterDnD.DnDWrapper):
                 obj['progress_bar'].set(1)
         self.btn_convert.configure(state="normal")
         messagebox.showinfo("Fin", "Proceso terminado.")
-
-    def register_file(self, path):
-        ext = os.path.splitext(path)[1].lower()
-        if ext not in ['.flac', '.wav', '.mp3', '.m4a']: return -1
-        for idx, f_data in enumerate(self.files_data):
-            if f_data['path'] == path: return idx
-        file_obj = {"path": path, "filename": os.path.basename(path), "ext": ext, "status": "Ready", "tags": {}, "widget": None, "lbl_status": None, "progress_bar": None, "cover_bytes": None, "new_cover_path": None, "delete_cover": False, "ctk_thumb": None}
-        self.files_data.append(file_obj)
-        self.add_file_to_ui(file_obj)
-        self.read_metadata_from_file(file_obj)
-        return len(self.files_data) - 1
-
-    def add_file_to_ui(self, file_obj):
-        row = ctk.CTkFrame(self.scroll_frame)
-        row.pack(fill="x", pady=2)
-        lbl_name = ctk.CTkLabel(row, text=file_obj['filename'], width=220, anchor="w")
-        lbl_name.pack(side="left", padx=10)
-        lbl_status = ctk.CTkLabel(row, text=file_obj['status'], width=100, text_color="orange")
-        lbl_status.pack(side="right", padx=10)
-        progress = ctk.CTkProgressBar(row, width=80); progress.set(0); progress.pack(side="right", padx=10)
-        file_obj.update({'widget': row, 'lbl_name': lbl_name, 'lbl_status': lbl_status, 'progress_bar': progress})
-        row.bind("<Button-1>", lambda e, obj=file_obj: self.manual_select(obj))
-
-    def manual_select(self, file_obj):
-        idx = self.files_data.index(file_obj)
-        self.load_to_editor(idx)
-
-    def drop_on_converter(self, event):
-        for f in self.tk.splitlist(event.data): self.register_file(f)
-
-    def drop_on_editor(self, event):
-        idx = -1
-        for f in self.tk.splitlist(event.data): idx = self.register_file(f)
-        if idx != -1: self.load_to_editor(idx)
-
-    def browse_cover_art(self):
-        path = filedialog.askopenfilename(filetypes=[("Images", "*.jpg *.jpeg *.png")])
-        if path and self.current_selection_index is not None:
-            obj = self.files_data[self.current_selection_index]
-            obj['new_cover_path'], obj['delete_cover'] = path, False
-            self.update_cover_preview(obj)
-
-    def delete_current_cover(self):
-        if self.current_selection_index is not None:
-            obj = self.files_data[self.current_selection_index]
-            obj['delete_cover'], obj['new_cover_path'] = True, None
-            self.update_cover_preview(obj)
-
-    def change_output_folder(self):
-        folder = filedialog.askdirectory()
-        if folder: self.output_folder = folder; self.lbl_output.configure(text=f"Destino: {os.path.basename(folder)}")
 
 if __name__ == "__main__":
     app = AudioApp()
