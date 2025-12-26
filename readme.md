@@ -35,14 +35,14 @@ Diagnosis:
 
 1. Clone the repository
 
-    git clone https://github.com/Sarapa17/Audio-Converter-Tagger-Pro.git
-    cd Audio-Converter-Tagger-Pro
+   git clone https://github.com/Sarapa17/Audio-Converter-Tagger-Pro.git
+   cd Audio-Converter-Tagger-Pro
 
-2. Install dependencies
+3. Install dependencies
 
     pip install -r requirements.txt
 
-3. Setup FFmpeg
+4. Setup FFmpeg
    The application requires FFmpeg.
    macOS: brew install ffmpeg
    Windows: Download the binary from ffmpeg.org and add it to your System PATH or project root.
